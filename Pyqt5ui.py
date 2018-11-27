@@ -1,26 +1,32 @@
 import sys
 import cv2
 from PyQt5 import QtCore
+from PyQt5 import QtGui
 from PyQt5.QtCore import pyqtSlot
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog
+from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog, QMessageBox
 from PyQt5.QtPrintSupport import QPrintDialog, QPrinter
 from PyQt5.uic import loadUi
 import numpy as np
 from scipy import ndimage
+import scipy as sp
 
 
 class LoadQt(QMainWindow):
     def __init__(self):
         super(LoadQt, self).__init__()
-        loadUi('test.ui', self)
+        loadUi('demo.ui', self)
+        self.setWindowIcon(QtGui.QIcon("python-icon.png"))
+
         self.image = None
         self.actionOpen.triggered.connect(self.open_img)
         self.actionSave.triggered.connect(self.save_img)
         self.actionPrint.triggered.connect(self.createPrintDialog)
-        self.actionQuit.triggered.connect(self.close)
+        self.actionQuit.triggered.connect(self.QuestionMessage)
         self.actionBig.triggered.connect(self.big_Img)
         self.actionSmall.triggered.connect(self.small_Img)
+        self.actionQt.triggered.connect(self.AboutMessage)
+        self.actionAuthor.triggered.connect(self.AboutMessage2)
 
         #Chương 2
         self.actionRotation.triggered.connect(self.rotation)
@@ -30,8 +36,8 @@ class LoadQt(QMainWindow):
         self.actioAnhXam.triggered.connect(self.anh_Xam)
         self.actionNegative.triggered.connect(self.anh_Negative)
         self.actionHistogram.triggered.connect(self.histogram_Equalization)
-        self.actionLog.triggered.connect(self.Log) #Lỗi
-        self.action2.triggered.connect(self.Gamma2)
+        self.actionLog.triggered.connect(self.Log)
+        self.actionGamma.triggered.connect(self.gamma)
 
         #Chương 4
         self.actionGaussan.triggered.connect(self.Gaussian)
@@ -44,6 +50,7 @@ class LoadQt(QMainWindow):
         self.actionTanSo.triggered.connect(self.Tan_so)
         self.actionIdeal_LPF.triggered.connect(self.imidlp)
         self.actionGaussian_HPF.triggered.connect(self.Gaussian_HighPass)
+        #self.actionButterworth_HPF.triggered.connect(self.Butterworth_HighPass)
 
         #Chương 7
         self.actionDilate.triggered.connect(self.dilate)
@@ -56,18 +63,18 @@ class LoadQt(QMainWindow):
         self.actionConvex.triggered.connect(self.convex)
 
         #Chương 8
-        self.actionx_direcction_Sobel.triggered.connect(self.Sobel)
+        self.actionx_direcction_Sobel.triggered.connect(self.x_Sobel)
         self.actiony_direction_Sobel.triggered.connect(self.y_Sobel)
         self.actionLaplacian_2.triggered.connect(self.sobel_Laplacian)
         self.actionLaplacian_of_Gaussian.triggered.connect(self.lap_of_Gaussian)
-        self.actionCanny.triggered.connect(self.Canny)
+        self.actionCanny.triggered.connect(self.img_Canny)
 
-        #vùng set input
+        #Set input
         self.dial.valueChanged.connect(self.rotation)
-        self.horizontalSlider.valueChanged.connect(self.Gamma2)
+        self.horizontalSlider.valueChanged.connect(self.Gamma_)
         self.size_Img.valueChanged.connect(self.big_Img)
         self.gaussian_QSlider.valueChanged.connect(self.Gaussian)
-        self.erosion.valueChanged.connect(self.erode)
+        self.erosion.valueChanged.connect(self.HinhThai)
 
         self.gray.stateChanged.connect(self.anh_Xam)
 
@@ -87,8 +94,7 @@ class LoadQt(QMainWindow):
         self.canny_min.valueChanged.connect(self.Canny)
         self.canny_max.valueChanged.connect(self.Canny)
 
-
-
+        self.pushButton.clicked.connect(self.reset)
 
     @pyqtSlot()
     def loadImage(self, fname):
@@ -135,20 +141,35 @@ class LoadQt(QMainWindow):
         if dialog.exec_() == QPrintDialog.Accepted:
             self.imgLabel2.print_(printer)
 
-    def big_Img(self , c):
-        self.image = self.tmp
-        self.image = cv2.resize(self.image, None, fx=c, fy=c, interpolation=cv2.INTER_CUBIC)
+    def big_Img(self):
+        self.image = cv2.resize(self.image, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
         self.displayImage(2)
 
     def small_Img(self):
         self.image = cv2.resize(self.image, None, fx=0.75, fy=0.75, interpolation=cv2.INTER_CUBIC)
         self.displayImage(2)
 
-    ################# Chương 2 ##############################################################################
-    def rotation(self, angle):
+    def reset(self):
         self.image = self.tmp
+        self.displayImage(2)
+
+    def AboutMessage(self):
+        QMessageBox.about(self, "About Qt - Qt Designer", "This is program uses Qt version 5.11.1.")
+    def AboutMessage2(self):
+        QMessageBox.about(self, "About Author", "Trịnh Hoàng Huy & Nguyễn Minh Hiếu Bốn")
+
+    def QuestionMessage(self):
+        message = QMessageBox.question(self, "Exit", "Bạn có chắc muốn thoát", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if message == QMessageBox.Yes:
+            print("Yes")
+            self.close()
+        else:
+            print("No")
+
+    ################# Chương 2 ##############################################################################
+    def rotation(self):
         rows, cols, steps = self.image.shape
-        M = cv2.getRotationMatrix2D((cols / 2, rows / 2), angle, 1)
+        M = cv2.getRotationMatrix2D((cols / 2, rows / 2), 90, 1)
         self.image = cv2.warpAffine(self.image, M, (cols, rows))
         self.displayImage(2)
 
@@ -166,9 +187,7 @@ class LoadQt(QMainWindow):
     ################# Chương 3 ##############################################################################
     def anh_Xam(self):
         self.image = self.tmp
-        if self.gray.isChecked():
-            self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
-            self.image = cv2.cvtColor(self.image, cv2.COLOR_GRAY2RGB)
+        self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
         self.displayImage(2)
 
     def anh_Negative(self):
@@ -178,55 +197,58 @@ class LoadQt(QMainWindow):
 
     def histogram_Equalization(self):
         self.image = self.tmp
-        if self.hist.isChecked():
-            self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
-            self.image = cv2.equalizeHist(self.image)
-            self.image = cv2.cvtColor(self.image, cv2.COLOR_GRAY2RGB)
-
+        img_yuv = cv2.cvtColor(self.image, cv2.COLOR_RGB2YUV)
+        img_yuv[:, :, 0] = cv2.equalizeHist(img_yuv[:, :, 0])
+        self.image = cv2.cvtColor(img_yuv, cv2.COLOR_YUV2RGB)
         self.displayImage(2)
 
-    def scaleImage(self, factor):
-        self.scaleImage *= factor
-        self.imgLabel.resize(self.scaleImage * self.imgLabel.pixmap() .size())
-
-    def Log(self, c):
+    def Log(self):
         self.image = self.tmp
-        if self.cbLog.isChecked():
-            img_2 = np.uint8(np.log(self.image))
-            self.image = cv2.threshold(img_2, c, 225, cv2.THRESH_BINARY)[1]
+        img_2 = np.uint8(np.log(self.image))
+        c = 2
+        self.image = cv2.threshold(img_2, c, 225, cv2.THRESH_BINARY)[1]
         self.displayImage(2)
 
-    def Gamma2(self , g):
+    def Gamma_(self, gamma):
         self.image = self.tmp
-        c = 1
-        gamma = [g]
-        for i in range(len(gamma)):
-            self.image = c * (self.image + 1) ** gamma[i]
+        gamma = gamma*0.1
+        invGamma = 1.0 /gamma
+        table = np.array([((i / 255.0) ** invGamma) * 255
+                          for i in np.arange(0, 256)]).astype("uint8")
+
+        self.image = cv2.LUT(self.image, table)
+        self.displayImage(2)
+
+    def gamma(self, gamma):
+        self.image = self.tmp
+        gamma = 1.5
+        invGamma = 1.0 / gamma
+        table = np.array([((i / 255.0) ** invGamma) * 255
+            for i in np.arange(0, 256)]).astype("uint8")
+
+        self.image = cv2.LUT(self.image, table)
         self.displayImage(2)
 
     ################# Chương 4 ##############################################################################
-    def Gaussian(self , c):
+    def Gaussian(self):
         self.image = self.tmp
-        self.image = cv2.GaussianBlur(self.image, (5, 5), c)
+        self.image = cv2.GaussianBlur(self.image, (5, 5), 2)
         self.displayImage(2)
 
     def High_Boost(self):
         self.image = self.tmp
-        if self.laplacian.ischecked():
-            x = np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]])
-            self.image = cv2.filter2D(np.array(self.image), -1, x)
+        x = np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]])
+        self.image = cv2.filter2D(np.array(self.image), -1, x)
         self.displayImage(2)
 
     def Laplacian(self):
         self.image = self.tmp
         h = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-        if self.cbLap.isChecked():
-            self.image = cv2.filter2D(np.array(self.image), -1, h)
+        self.image = cv2.filter2D(np.array(self.image), -1, h)
         self.displayImage(2)
 
     def filter_Average(self):
         self.image = self.tmp
-
         self.image = cv2.medianBlur(self.image, 5)
         self.displayImage(2)
 
@@ -281,21 +303,52 @@ class LoadQt(QMainWindow):
         self.displayImage(2)
         print(10)
 
+    '''def Butterworth_HighPass(self):
+        self.image = self.tmp
+        # desired RMS
+        rms = 0.2
+        raw1 =  self.image / np.std(self.image)
+        print(1)
+        # make the standard deviation to be the desired RMS
+        raw2 = raw1 * rms
+        print(2)
+        # convert to frequency domain
+        img_freq = np.fft.fft2(raw2)
+        print(3)
+        hp_filt = psychopy.filters.butter2d_hp(size=self.image.shape, cutoff=0.05, n=10)
+        print(4)
+        img_filt = np.fft.fftshift(img_freq) * hp_filt
+        print(5)
+        img_new = np.real(np.fft.ifft2(np.fft.ifftshift(img_filt)))
+        print(6)
+        self.image = img_new
+
+        self.displayImage(2)'''
+
     def Gaussian_HighPass(self):
         self.image = self.tmp
         data = np.array(self.image, dtype=float)
-        lowpass = ndimage.gaussian_filter(data, 3)
-        self.image = data - lowpass
+        lowpass = ndimage.gaussian_filter(data, 50)
+        gauss_highpass = data - lowpass
+        gauss_highpass = np.uint8(gauss_highpass)
+        self.image = ~gauss_highpass
+
         self.displayImage(2)
 
     ################# Chương 7 ##############################################################################
     def dilate(self):
         self.image = self.tmp
         kernel = np.ones((2, 6), np.uint8)
-        self.image = cv2.dilate(self.image, kernel, iterations=1)
+        self.image = cv2.dilate(self.image, kernel, iterations=3)
         self.displayImage(2)
 
-    def erode(self , iter):
+    def erode(self):
+        self.image = self.tmp
+        kernel = np.ones((4, 7), np.uint8)
+        self.image = cv2.erode(self.tmp, kernel, iterations=3)
+        self.displayImage(2)
+
+    def HinhThai(self , iter):
         self.image = self.tmp
         if iter > 0 :
             kernel = np.ones((4, 7), np.uint8)
@@ -376,6 +429,13 @@ class LoadQt(QMainWindow):
             if self.sobel_y.isChecked():
                 self.image = cv2.Sobel(self.image, cv2.CV_8U, 0, 1, ksize=5)
         self.displayImage(2)
+    def x_Sobel(self):
+        self.image = self.tmp
+        im = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+        self.image = cv2.Sobel(im, cv2.CV_8U, 1, 0, ksize=5)
+
+        self.displayImage(2)
+
     def y_Sobel(self):
         self.image = self.tmp
         im = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
@@ -392,19 +452,24 @@ class LoadQt(QMainWindow):
 
     def lap_of_Gaussian(self):
         self.image = self.tmp
-        h = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-        lap = cv2.filter2D(np.array(self.image), -1, h)
-        kernal = np.array([[1, -2, 1, ], [-2, 4, -2], [1, -2, 1]])
-
+        im = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+        blur = cv2.GaussianBlur(im, (5, 5), 0)
+        self.image = cv2.Laplacian(blur, cv2.CV_8U, ksize=5)
 
         self.displayImage(2)
-    def Canny(self ):
+
+    def img_Canny(self):
+        self.image = self.tmp
+        can = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+        self.image = cv2.Canny(can, 100, 200)
+        self.displayImage(2)
+
+    def Canny(self):
         self.image = self.tmp
         if self.canny.isChecked():
             can = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
             self.image = cv2.Canny(can, self.canny_min.value(), self.canny_max.value())
         self.displayImage(2)
-
 
 app = QApplication(sys.argv)
 win = LoadQt()
